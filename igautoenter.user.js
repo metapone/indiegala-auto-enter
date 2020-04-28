@@ -44,10 +44,6 @@
     delay: 1,
     // Display logs
     debug: false,
-    // Your Steam API key (keep it private!): "A1B2C3D4E5F6H7I8J9K10L11M12N13O1"
-    steamApiKey: null,
-    // Your Steam user id: "12345678901234567"
-    steamUserId: null,
     // how many tickets to buy in extra odds giveaways
     extraTickets: 1
   };
@@ -151,18 +147,12 @@
     if (!fetchOwnedGames) {
       return [];
     }
-    const { steamApiKey, steamUserId } = options;
-    if (!steamApiKey || !steamUserId) {
-      warn("You must set both 'steamApiKey' and 'steamUserId' to use 'skipOwnedGames'! Proceeding without checking owned games");
-      return [];
-    }
     let ownedGames = await getFromCache("ownedGames");
     if (ownedGames) {
       return ownedGames;
     }
-    const { responseText } = await corsRequest(`https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${steamApiKey}&steamid=${steamUserId}&format=json`);
-    const { games } = JSON.parse(responseText).response;
-    ownedGames = games.map(({ appid }) => appid);
+    const { responseText } = await corsRequest("https://store.steampowered.com/dynamicstore/userdata");
+    ownedGames = JSON.parse(responseText).rgOwnedApps;
     await saveToCache("ownedGames", ownedGames, 60);
     return ownedGames;
   }
