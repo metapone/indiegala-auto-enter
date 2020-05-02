@@ -6,7 +6,7 @@ name: Fork Sync
 # events but only for the master branch
 on:
   schedule:
-    - cron:  '0 12 * * *'
+    - cron:  '1 * * * *'
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -20,4 +20,4 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: TG908/fork-sync@v1.1.6
       with:
-        github_token: 7984c59ae4a967c0a69179dff8df89950b6357e8
+        github_token: ${{ secrets.GITHUB_TOKEN }}
