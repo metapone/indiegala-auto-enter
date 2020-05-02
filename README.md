@@ -1,8 +1,8 @@
 # indiegala-auto-enter
-A script to automatically enter Giveaways on IndieGala
+A script to automatically enter Giveaways on IndieGala. This fork uses Steam local data to get a list of user owned games instead of calling Steam APIs, since Steam APIs dont' return removed, banned, limited and other anomalous games. To use this fork, user must be logged in to Steam.
 
 ## Installation
-Install Tampermonkey and then click [here](https://github.com/Hafas/indiegala-auto-enter/raw/master/igautoenter.user.js).
+Install Tampermonkey and then click [here](https://github.com/metapone/indiegala-auto-enter/raw/master/igautoenter.user.js).
 
 ## Options
 Edit the script to change the `options`-Object
@@ -19,8 +19,6 @@ Edit the script to change the `options`-Object
 * `timeout` {`Number`} - when making a request to IndieGala the script will wait `timeout` seconds before it will retry. *Added in `1.1.4`.*
 * `delay` {`Number`} - define how many seconds the script will wait between entering giveaways. *Added in `2.3.0`.*
 * `debug` {`Boolean`} - set to `true` if you want to see log output of this script in the console
-* `steamApiKey` {`String`} - your personal Steam API key. You can generate one here: https://steamcommunity.com/dev/apikey. Don't share the key with anyone. *Added in `2.1.0`.*
-* `steamUserId` {`String`} - your Steam Id 64. You can see determine yours by using this tool: https://profile.tf *Added in `2.1.0`.*
 * `extraTickets` {`Integer`} - how many tickets to buy in extra odds giveaways. Set to `0` to not enter extra odds giveaways at all. *Added in `2.4.0`.*
 
 If there is an update, backup the options first. It will be overwritten otherwise.
