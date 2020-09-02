@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         IndieGala: Auto-enter Giveaways
-// @version      2.4.6
+// @version      2.5.0
 // @description  Automatically enters IndieGala Giveaways
 // @author       Hafas (https://github.com/Hafas/)
 // @match        https://www.indiegala.com/giveaways*
@@ -28,6 +28,8 @@
     maxParticipants: 0,
     // set to 0 to ignore the price
     maxPrice: 0,
+    // minimum giveaway level
+    minLevel: 0,
     // Array of names of games: ["game1","game2","game3"]
     gameBlacklist: [],
     onlyEnterGuaranteed: false,
@@ -96,7 +98,7 @@
           break;
         }
       }
-      info("Nothing to do. Waiting %s minutes", waitOnEnd);
+      info("Nothing to do. Waiting %s minutes", options.waitOnEnd);
       setTimeout(reload, waitOnEnd);
     } catch (err) {
       error("Something went wrong:", err);
@@ -133,12 +135,14 @@
   function setUserData (json) {
     if (!json) {
       error("No user data found!");
+      my.level = options.minLevel;
+      my.coins = 240;
       return;
     }
     const { giveaways_user_lever: level, silver_coins_tot: coins } = json;
     if (isNaN(level)) {
       error("unable to determine level");
-      my.level = 0;
+      my.level = options.minLevel;
     } else {
       my.level = level;
     }
@@ -247,18 +251,32 @@
       for (let i = 0; i < numberOfEntries; ++i) {
         const payload = await giveaway.enter();
         log("giveaway entered", "payload", payload);
-        if (payload.status === "ok") {
-          my.coins = payload.silver_tot;
-          giveaway.boughtTickets += 1;
-        } else {
-          error("Failed to enter giveaway. Status: %s. Code: %s, My: %o", payload.status, payload.code, my);
-          if (payload.status === "insufficient_credit") {
-            //we know that our coins value is lower than the price to enter this giveaway, so we can set a guessed value
+        switch (payload.status) {
+          case "ok": {
+            my.coins = payload.silver_tot;
+            giveaway.boughtTickets += 1;
+            break;
+          }
+          case "silver": {
+            // we know that our coins value is lower than the price to enter this giveaway, so we can set a guessed value
             if (isNaN(my.coins)) {
               my.coins = giveaway.price - 1;
             } else {
               my.coins = Math.min(my.coins, giveaway.price - 1);
             }
+            break;
+          }
+          case "level": {
+            // level hasn't been set properly on initialization - now we can set a guessed value
+            if (isNaN(my.level)) {
+              my.level = giveaway.minLevel - 1;
+            } else {
+              my.level = Math.min(my.level, giveaway.minLevel - 1);
+            }
+            break;
+          }
+          default: {
+            error("Failed to enter giveaway. Status: %s. Code: %s, My: %o", payload.status, payload.code, my);
           }
         }
         log("waiting some msec:", delay);
@@ -476,6 +494,10 @@
       }
       if (this.minLevel > my.level) {
         log("Not entering '%s' because my level is insufficient (mine: %s, needed: %s)", this.name, my.level, this.minLevel);
+        return false;
+      }
+      if (this.minLevel < options.minLevel) {
+        log("Not entering '%s' because level is too low (level: %s, min: %s)", this.name, this.minLevel, options.minLevel);
         return false;
       }
       if (this.price > my.coins) {
