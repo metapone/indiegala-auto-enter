@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         IndieGala: Auto-enter Giveaways
-// @version      2.5.0
+// @version      2.6.0
 // @description  Automatically enters IndieGala Giveaways
 // @author       Hafas (https://github.com/Hafas/)
 // @match        https://www.indiegala.com/giveaways*
@@ -12,6 +12,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
+// @grant        GM_registerMenuCommand
 // @require      https://greasemonkey.github.io/gm4-polyfill/gm4-polyfill.js
 // @connect      api.steampowered.com
 // @connect      store.steampowered.com
@@ -20,6 +21,8 @@
 (function () {
   /**
    * change values to customize the script's behaviour
+   * preferably in your script manager to avoid overrides on updates
+   * if they aren't set they will default to the values below
    */
   const options = {
     skipOwnedGames: false,
@@ -40,8 +43,6 @@
     interceptAlert: false,
     // how many minutes to wait at the end of the line until restarting from the beginning
     waitOnEnd: 60,
-    // how many seconds to wait for a respond by IndieGala
-    timeout: 30,
     // how many seconds to wait between entering giveaways
     delay: 1,
     // Display logs
@@ -50,16 +51,12 @@
     extraTickets: 1
   };
 
-  const waitOnEnd = options.waitOnEnd * 60 * 1000;
-  const timeout = options.timeout * 1000;
-  const delay = options.delay * 1000;
-
   /**
    * current user state
    */
   const my = {
-    level: undefined,
-    coins: undefined,
+    level: 10,
+    coins: 240,
     nextRecharge: 60 * 60 * 1000,
     ownedGames: new Set()
   };
@@ -79,6 +76,7 @@
       return;
     }
     try {
+      await withFailSafeAsync(getOptionsFromCache)();
       const [userData, ownedGames] = await Promise.all([
         withFailSafeAsync(getUserData)(),
         withFailSafeAsync(getOwnedGames)()
@@ -98,6 +96,7 @@
           break;
         }
       }
+      const waitOnEnd = options.waitOnEnd * 60 * 1000;
       info("Nothing to do. Waiting %s minutes", options.waitOnEnd);
       setTimeout(reload, waitOnEnd);
     } catch (err) {
@@ -135,20 +134,16 @@
   function setUserData (json) {
     if (!json) {
       error("No user data found!");
-      my.level = options.minLevel;
-      my.coins = 240;
       return;
     }
     const { giveaways_user_lever: level, silver_coins_tot: coins } = json;
     if (isNaN(level)) {
       error("unable to determine level");
-      my.level = options.minLevel;
     } else {
       my.level = level;
     }
     if (isNaN(coins)) {
       error("unable to determine #coins");
-      my.coins = 240;
     } else {
       my.coins = coins;
     }
@@ -259,26 +254,19 @@
           }
           case "silver": {
             // we know that our coins value is lower than the price to enter this giveaway, so we can set a guessed value
-            if (isNaN(my.coins)) {
-              my.coins = giveaway.price - 1;
-            } else {
-              my.coins = Math.min(my.coins, giveaway.price - 1);
-            }
+            my.coins = Math.min(my.coins, giveaway.price - 1);
             break;
           }
           case "level": {
             // level hasn't been set properly on initialization - now we can set a guessed value
-            if (isNaN(my.level)) {
-              my.level = giveaway.minLevel - 1;
-            } else {
-              my.level = Math.min(my.level, giveaway.minLevel - 1);
-            }
+            my.level = Math.min(my.level, giveaway.minLevel - 1);
             break;
           }
           default: {
             error("Failed to enter giveaway. Status: %s. Code: %s, My: %o", payload.status, payload.code, my);
           }
         }
+        const delay = options.delay * 1000;
         log("waiting some msec:", delay);
         await wait(delay);
       }
@@ -522,7 +510,7 @@
       return response.json();
     }
   }
-  
+
   /**
    * load the DOM of the next page, parse it, and place it in `state.currentDocument` for further processing
    */
@@ -682,6 +670,47 @@
       value
     };
     await GM.setValue(key, JSON.stringify(object));
+  }
+
+ /*
+  * reads values from userscript manager and falls back to the defaults
+  * also adds simple menu entries to set the values through the userscript manager
+  */
+  async function getOptionsFromCache () {
+    const optionNames = Object.keys(options);
+    await Promise.all(optionNames.map(async (optionName) => {
+      
+      try {
+        if (optionName === "gameBlacklist" || optionName === "userBlacklist") {
+          options[optionName] = JSON.parse(await GM.getValue(optionName, JSON.stringify(options[optionName])));
+        } else {
+          options[optionName] = await GM.getValue(optionName, options[optionName]);
+        }
+      } catch (err) {
+        error("Something went wrong:", err);
+      }
+
+      // https://github.com/greasemonkey/greasemonkey/issues/1860#issuecomment-32908169
+      GM_registerMenuCommand("Set variable " + optionName, () => {
+        try {
+          var input = JSON.parse(prompt("Value for " + optionName, JSON.stringify(options[optionName])));
+
+          if (input == null) {
+            return;
+          }
+
+          if (Array.isArray(input)) {
+            input = JSON.stringify(input);
+          }
+
+          GM.setValue(optionName, input);
+          options[optionName] = input;
+          info("Changed %s to %s", optionName, options[optionName]);
+        } catch (err) {
+          error("Something went wrong:", err);
+        }
+      });
+    }));
   }
 
   start();
